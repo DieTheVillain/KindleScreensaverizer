@@ -179,17 +179,58 @@
   }
   .screen {
     position: relative;
+    container-type: inline-size;
+    aspect-ratio: 1236 / 1648; /* updated by JS to match selected model */
     background:
       repeating-conic-gradient(#dcdad2 0% 25%, #d7d5cd 0% 50%) 0 0 / 14px 14px; /* checker = transparency */
     border-radius: 3px;
     overflow: hidden;
     box-shadow: inset 0 0 0 1px rgba(0,0,0,.35);
   }
-  .screen canvas { display: block; width: 100%; height: auto; }
+  .screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+
+  /* fake book page behind the screensaver, so transparent regions read as "showing through" */
+  .booktext {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: #e4e2da;
+    padding: 8cqw 7cqw 10cqw;
+    color: #2b2a26;
+    font-family: 'Lora', Georgia, serif;
+    font-size: 3.3cqw;
+    line-height: 1.68;
+    text-align: justify;
+    hyphens: auto;
+    overflow: hidden;
+    user-select: none;
+  }
+  .booktext h2 {
+    font-size: 4.6cqw;
+    font-weight: 600;
+    text-align: center;
+    letter-spacing: .04em;
+    margin-bottom: 5cqw;
+  }
+  .booktext p { margin-bottom: 2.4cqw; text-indent: 5cqw; }
+  .booktext p:first-of-type { text-indent: 0; }
+  .booktext .loc {
+    position: absolute;
+    bottom: 2.2cqw;
+    left: 7cqw;
+    right: 7cqw;
+    display: flex;
+    justify-content: space-between;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 2.5cqw;
+    color: #6e6c66;
+  }
   .screen .empty {
     position: absolute; inset: 0;
+    z-index: 2;
     display: flex; align-items: center; justify-content: center;
-    background: #e4e2da;
+    background: rgba(228,226,218,.6);
+    backdrop-filter: blur(1.5px);
     color: var(--ink-soft);
     font-size: .85rem;
     font-family: 'IBM Plex Mono', monospace;
@@ -197,7 +238,7 @@
     padding: 1rem;
   }
   /* e-ink refresh flash */
-  .screen .flash { position: absolute; inset: 0; background: var(--ink); opacity: 0; pointer-events: none; }
+  .screen .flash { position: absolute; inset: 0; z-index: 3; background: var(--ink); opacity: 0; pointer-events: none; }
   .screen .flash.go { animation: einkflash .28s steps(2, end); }
   @keyframes einkflash { 0% { opacity: 1; } 50% { opacity: 0; } 75% { opacity: .6; } 100% { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .screen .flash.go { animation: none; } }
@@ -280,6 +321,10 @@
         <input type="checkbox" id="dither">
         <label for="dither">Dither to 16 gray levels <span class="sub">(matches e-ink hardware)</span></label>
       </div>
+      <div class="check-row">
+        <input type="checkbox" id="bookbg" checked>
+        <label for="bookbg">Book page behind preview <span class="sub">(off shows a checkerboard)</span></label>
+      </div>
     </fieldset>
 
     <button class="download" id="download" disabled>Download screensaver PNG</button>
@@ -290,6 +335,17 @@
   <section class="preview-col" aria-label="Preview">
     <div class="device">
       <div class="screen" id="screen">
+        <div class="booktext" id="booktext" aria-hidden="true">
+          <h2>Chapter XI</h2>
+          <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+          <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+          <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
+          <p>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt, neque porro quisquam est qui dolorem ipsum.</p>
+          <p>At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident.</p>
+          <p>Similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita distinctio, nam libero tempore cum soluta nobis est eligendi optio.</p>
+          <p>Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae, itaque earum rerum hic tenetur a sapiente delectus.</p>
+          <div class="loc"><span>Loc 1287 of 3042</span><span>42%</span></div>
+        </div>
         <canvas id="canvas" width="1072" height="1448" hidden></canvas>
         <div class="empty" id="empty">Your screensaver preview appears here</div>
         <div class="flash" id="flash"></div>
@@ -444,6 +500,7 @@ function render() {
 
   canvas.width = m.w;
   canvas.height = m.h;
+  document.getElementById("screen").style.aspectRatio = `${m.w} / ${m.h}`;
 
   // meta line
   modelMeta.innerHTML =
@@ -514,6 +571,11 @@ modelSel.addEventListener("change", render);
 document.querySelectorAll('input[name="fit"], input[name="bg"], #dither').forEach(el =>
   el.addEventListener("change", render)
 );
+
+/* preview background toggle (does not affect the exported PNG) */
+$("bookbg").addEventListener("change", e => {
+  $("booktext").hidden = !e.target.checked;
+});
 
 render();
 </script>
