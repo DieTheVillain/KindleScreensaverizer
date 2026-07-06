@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kindle Screensaver Converter</title>
+<meta name="description" content="Convert any image into a correctly sized Kindle screensaver, entirely in your browser. Supports every jailbreakable Kindle model.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #e9e7e0;
+    --paper-deep: #dedbd2;
+    --ink: #1b1a18;
+    --ink-soft: #55534d;
+    --bezel: #24231f;
+    --bezel-edge: #3a3833;
+    --warmlight: #b0762f;
+    --line: #c8c4b8;
+    --radius: 10px;
+    font-size: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Lora', Georgia, serif;
+    line-height: 1.55;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    /* faint paper grain */
+    background-image: radial-gradient(rgba(0,0,0,0.028) 1px, transparent 1px);
+    background-size: 4px 4px;
+  }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+
+  header {
+    border-bottom: 1px solid var(--line);
+    padding: 1.4rem clamp(1rem, 4vw, 3rem);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+  header h1 { font-size: 1.45rem; font-weight: 600; letter-spacing: -0.01em; }
+  header h1 .cursor { display: inline-block; width: .55em; height: 1em; background: var(--ink); vertical-align: -0.15em; margin-left: .15em; animation: blink 1.2s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { header h1 .cursor { animation: none; } }
+  header .tag { font-family: 'IBM Plex Mono', monospace; font-size: .78rem; color: var(--ink-soft); }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(300px, 420px) 1fr;
+    gap: clamp(1.2rem, 3vw, 3rem);
+    padding: clamp(1.2rem, 3vw, 2.5rem) clamp(1rem, 4vw, 3rem);
+    max-width: 1180px;
+    width: 100%;
+    margin: 0 auto;
+    align-items: start;
+  }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+
+  /* ---------- controls ---------- */
+  .controls { display: flex; flex-direction: column; gap: 1.15rem; }
+
+  .drop {
+    border: 1.5px dashed var(--ink-soft);
+    border-radius: var(--radius);
+    padding: 1.6rem 1.2rem;
+    text-align: center;
+    cursor: pointer;
+    background: var(--paper-deep);
+    transition: border-color .15s, background .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--ink); background: #e3e0d6; }
+  .drop:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .drop strong { font-weight: 600; }
+  .drop .hint { display: block; margin-top: .35rem; font-size: .78rem; color: var(--ink-soft); font-family: 'IBM Plex Mono', monospace; }
+  .drop .filename { display: none; margin-top: .5rem; font-size: .8rem; font-family: 'IBM Plex Mono', monospace; color: var(--ink); word-break: break-all; }
+  input[type="file"] { display: none; }
+
+  fieldset { border: 0; display: flex; flex-direction: column; gap: .45rem; }
+  label.field-label, legend {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--ink-soft);
+  }
+  select {
+    width: 100%;
+    padding: .6rem .7rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .85rem;
+    color: var(--ink);
+    background: #f2f0ea;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  select:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .model-meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .75rem;
+    color: var(--ink-soft);
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .model-meta b { color: var(--ink); font-weight: 500; }
+
+  .radio-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+  .radio-row input { position: absolute; opacity: 0; pointer-events: none; }
+  .radio-row label.chip {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .78rem;
+    padding: .38rem .75rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    cursor: pointer;
+    background: #f2f0ea;
+    user-select: none;
+  }
+  .radio-row input:checked + label.chip { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .radio-row input:focus-visible + label.chip { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .radio-row input:disabled + label.chip { opacity: .4; cursor: not-allowed; }
+
+  .check-row { display: flex; align-items: center; gap: .5rem; font-size: .9rem; }
+  .check-row input { width: 1rem; height: 1rem; accent-color: var(--ink); }
+  .check-row .sub { font-size: .75rem; color: var(--ink-soft); font-family: 'IBM Plex Mono', monospace; }
+
+  button.download {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .9rem;
+    font-weight: 500;
+    padding: .8rem 1rem;
+    background: var(--ink);
+    color: var(--paper);
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  button.download:hover:not(:disabled) { opacity: .85; }
+  button.download:disabled { opacity: .35; cursor: not-allowed; }
+  button.download:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+  .privacy {
+    font-size: .8rem;
+    color: var(--ink-soft);
+    border-left: 3px solid var(--warmlight);
+    padding-left: .7rem;
+  }
+  .privacy b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- preview ---------- */
+  .preview-col { display: flex; flex-direction: column; align-items: center; gap: .9rem; }
+  .device {
+    background: linear-gradient(160deg, var(--bezel-edge), var(--bezel) 40%);
+    border-radius: 22px;
+    padding: 26px 18px 44px;
+    box-shadow: 0 14px 34px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.07);
+    width: min(360px, 78vw);
+    position: relative;
+  }
+  .device::after { /* power button nub */
+    content: "";
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 42px; height: 5px;
+    border-radius: 3px;
+    background: #171613;
+  }
+  .screen {
+    position: relative;
+    container-type: inline-size;
+    aspect-ratio: 1236 / 1648; /* updated by JS to match selected model */
+    background:
+      repeating-conic-gradient(#dcdad2 0% 25%, #d7d5cd 0% 50%) 0 0 / 14px 14px; /* checker = transparency */
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.35);
+  }
+  .screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+
+  /* fake book page behind the screensaver, so transparent regions read as "showing through" */
+  .booktext {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: #e4e2da;
+    padding: 8cqw 7cqw 10cqw;
+    color: #2b2a26;
+    font-family: 'Lora', Georgia, serif;
+    font-size: 3.3cqw;
+    line-height: 1.68;
+    text-align: justify;
+    hyphens: auto;
+    overflow: hidden;
+    user-select: none;
+  }
+  .booktext h2 {
+    font-size: 4.6cqw;
+    font-weight: 600;
+    text-align: center;
+    letter-spacing: .04em;
+    margin-bottom: 5cqw;
+  }
+  .booktext p { margin-bottom: 2.4cqw; text-indent: 5cqw; }
+  .booktext p:first-of-type { text-indent: 0; }
+  .booktext .loc {
+    position: absolute;
+    bottom: 2.2cqw;
+    left: 7cqw;
+    right: 7cqw;
+    display: flex;
+    justify-content: space-between;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 2.5cqw;
+    color: #6e6c66;
+  }
+  .screen .empty {
+    position: absolute; inset: 0;
+    z-index: 2;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(228,226,218,.6);
+    backdrop-filter: blur(1.5px);
+    color: var(--ink-soft);
+    font-size: .85rem;
+    font-family: 'IBM Plex Mono', monospace;
+    text-align: center;
+    padding: 1rem;
+  }
+  /* e-ink refresh flash */
+  .screen .flash { position: absolute; inset: 0; z-index: 3; background: var(--ink); opacity: 0; pointer-events: none; }
+  .screen .flash.go { animation: einkflash .28s steps(2, end); }
+  @keyframes einkflash { 0% { opacity: 1; } 50% { opacity: 0; } 75% { opacity: .6; } 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .screen .flash.go { animation: none; } }
+
+  .readout { font-family: 'IBM Plex Mono', monospace; font-size: .78rem; color: var(--ink-soft); text-align: center; }
+  .readout b { color: var(--ink); font-weight: 500; }
+
+  .tip { font-size: .8rem; color: var(--ink-soft); text-align: center; max-width: 46ch; }
+  .tip code { font-family: 'IBM Plex Mono', monospace; font-size: .75rem; background: var(--paper-deep); padding: .1em .35em; border-radius: 4px; }
+
+  /* ---------- footer ---------- */
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 1.1rem clamp(1rem, 4vw, 3rem);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .6rem;
+    font-size: .85rem;
+  }
+  footer .jb a {
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration-color: var(--warmlight);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+  footer .jb a:hover { color: var(--warmlight); }
+  footer .fine { font-family: 'IBM Plex Mono', monospace; font-size: .72rem; color: var(--ink-soft); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Kindle Screensaver Converter<span class="cursor" aria-hidden="true"></span></h1>
+  <span class="tag">resize &middot; grayscale &middot; download &mdash; all in your browser</span>
+</header>
+
+<main>
+  <section class="controls" aria-label="Conversion settings">
+
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Upload an image">
+      <strong>Drop an image here</strong> or click to browse
+      <span class="hint">PNG keeps its transparency &middot; JPG, WEBP, GIF also accepted</span>
+      <span class="filename" id="filename"></span>
+      <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp">
+    </div>
+
+    <fieldset>
+      <label class="field-label" for="model">Kindle model</label>
+      <select id="model"></select>
+      <div class="model-meta" id="modelMeta"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Sizing</legend>
+      <div class="radio-row" role="radiogroup" aria-label="Sizing mode">
+        <input type="radio" name="fit" id="fitFill" value="fill" checked>
+        <label class="chip" for="fitFill">Fill (crop)</label>
+        <input type="radio" name="fit" id="fitContain" value="contain">
+        <label class="chip" for="fitContain">Fit (letterbox)</label>
+      </div>
+    </fieldset>
+
+    <fieldset id="bgField" hidden>
+      <legend>Letterbox background</legend>
+      <div class="radio-row" role="radiogroup" aria-label="Letterbox background">
+        <input type="radio" name="bg" id="bgWhite" value="#ffffff" checked>
+        <label class="chip" for="bgWhite">White</label>
+        <input type="radio" name="bg" id="bgBlack" value="#000000">
+        <label class="chip" for="bgBlack">Black</label>
+        <input type="radio" name="bg" id="bgClear" value="transparent">
+        <label class="chip" for="bgClear">Transparent</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <div class="check-row">
+        <input type="checkbox" id="dither">
+        <label for="dither">Dither to 16 gray levels <span class="sub">(matches e-ink hardware)</span></label>
+      </div>
+      <div class="check-row">
+        <input type="checkbox" id="bookbg" checked>
+        <label for="bookbg">Book page behind preview <span class="sub">(off shows a checkerboard)</span></label>
+      </div>
+    </fieldset>
+
+    <button class="download" id="download" disabled>Download screensaver PNG</button>
+
+    <p class="privacy"><b>Nothing is uploaded.</b> Your image is processed entirely in this tab and is gone the moment you close it. There is no server.</p>
+  </section>
+
+  <section class="preview-col" aria-label="Preview">
+    <div class="device">
+      <div class="screen" id="screen">
+        <div class="booktext" id="booktext" aria-hidden="true">
+          <h2>Chapter XI</h2>
+          <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+          <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+          <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
+          <p>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt, neque porro quisquam est qui dolorem ipsum.</p>
+          <p>At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident.</p>
+          <p>Similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita distinctio, nam libero tempore cum soluta nobis est eligendi optio.</p>
+          <p>Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae, itaque earum rerum hic tenetur a sapiente delectus.</p>
+          <div class="loc"><span>Loc 1287 of 3042</span><span>42%</span></div>
+        </div>
+        <canvas id="canvas" width="1072" height="1448" hidden></canvas>
+        <div class="empty" id="empty">Your screensaver preview appears here</div>
+        <div class="flash" id="flash"></div>
+      </div>
+    </div>
+    <div class="readout" id="readout">No image loaded</div>
+    <p class="tip">On a jailbroken Kindle, drop the PNG into your screensaver hack folder, e.g. <code>/mnt/us/linkss/screensavers/</code>.</p>
+  </section>
+</main>
+
+<footer>
+  <span class="jb">Kindle not jailbroken yet? Start at <a href="https://kindlemodding.org/" target="_blank" rel="noopener">kindlemodding.org</a></span>
+  <span class="fine">no uploads &middot; no tracking &middot; static page</span>
+</footer>
+
+<script>
+"use strict";
+
+/* ---------------- model data ---------------- */
+const MODELS = [
+  { group: "Basic (non-Paperwhite)", items: [
+    { id: "k11",  name: "Kindle (2022, 11th gen)",      w: 1072, h: 1448, color: false },
+    { id: "k12",  name: "Kindle (2024)",                w: 1072, h: 1448, color: false },
+    { id: "k10",  name: "Kindle (2019, 10th gen)",      w: 600,  h: 800,  color: false },
+    { id: "k8",   name: "Kindle (2016, 8th gen)",       w: 600,  h: 800,  color: false },
+    { id: "k457", name: "Kindle 4 / 5 / Touch / 7th gen", w: 600, h: 800, color: false },
+    { id: "k3",   name: "Kindle Keyboard (K3)",         w: 600,  h: 800,  color: false },
+  ]},
+  { group: "Paperwhite", items: [
+    { id: "pw12", name: "Paperwhite 1 / 2",             w: 758,  h: 1024, color: false },
+    { id: "pw3",  name: "Paperwhite 3 (2015)",          w: 1072, h: 1448, color: false },
+    { id: "pw4",  name: "Paperwhite 4 (2018)",          w: 1072, h: 1448, color: false },
+    { id: "pw5",  name: "Paperwhite 5 (2021)",          w: 1236, h: 1648, color: false },
+    { id: "pw6",  name: "Paperwhite 6 (2024)",          w: 1264, h: 1680, color: false },
+  ]},
+  { group: "Voyage / Oasis", items: [
+    { id: "voy",  name: "Voyage",                       w: 1072, h: 1448, color: false },
+    { id: "oa1",  name: "Oasis 1 (2016)",               w: 1072, h: 1448, color: false },
+    { id: "oa23", name: "Oasis 2 / 3",                  w: 1264, h: 1680, color: false },
+  ]},
+  { group: "Scribe / Colorsoft", items: [
+    { id: "scribe", name: "Scribe",                     w: 1860, h: 2480, color: false },
+    { id: "cs",     name: "Colorsoft (2024)",           w: 1264, h: 1680, color: true  },
+  ]},
+];
+
+/* ---------------- element refs ---------------- */
+const $ = id => document.getElementById(id);
+const drop = $("drop"), fileInput = $("file"), filenameEl = $("filename");
+const modelSel = $("model"), modelMeta = $("modelMeta");
+const bgField = $("bgField");
+const canvas = $("canvas"), ctx = canvas.getContext("2d");
+const emptyEl = $("empty"), flashEl = $("flash");
+const readout = $("readout"), downloadBtn = $("download");
+
+let srcImage = null;   // HTMLImageElement
+let srcIsPNG = false;
+let srcName = "";
+
+/* ---------------- populate model select ---------------- */
+for (const g of MODELS) {
+  const og = document.createElement("optgroup");
+  og.label = g.group;
+  for (const m of g.items) {
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = `${m.name} — ${m.w}×${m.h}`;
+    og.appendChild(opt);
+  }
+  modelSel.appendChild(og);
+}
+modelSel.value = "pw5";
+
+function currentModel() {
+  for (const g of MODELS) for (const m of g.items) if (m.id === modelSel.value) return m;
+  return MODELS[0].items[0];
+}
+
+/* ---------------- file handling ---------------- */
+function loadFile(file) {
+  if (!file || !file.type.startsWith("image/")) return;
+  srcIsPNG = file.type === "image/png";
+  srcName = file.name;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    srcImage = img;
+    filenameEl.style.display = "block";
+    filenameEl.textContent = `${file.name} (${img.naturalWidth}×${img.naturalHeight})`;
+    render();
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    readout.textContent = "That file could not be read as an image.";
+  };
+  img.src = url;
+}
+
+drop.addEventListener("click", () => fileInput.click());
+drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
+fileInput.addEventListener("change", () => loadFile(fileInput.files[0]));
+["dragover", "dragenter"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => loadFile(e.dataTransfer.files[0]));
+document.addEventListener("paste", e => {
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/"));
+  if (item) loadFile(item.getAsFile());
+});
+
+/* ---------------- rendering ---------------- */
+function grayscale(imgData) {
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const v = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+    d[i] = d[i + 1] = d[i + 2] = v; // alpha untouched
+  }
+}
+
+function ditherTo16(imgData, w, h) {
+  // Floyd–Steinberg on the (already grayscale) luminance, 16 levels
+  const d = imgData.data;
+  const step = 255 / 15;
+  const g = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) g[i] = d[i * 4];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      const oldV = g[i];
+      const newV = Math.round(oldV / step) * step;
+      const err = oldV - newV;
+      g[i] = newV;
+      if (x + 1 < w)              g[i + 1]     += err * 7 / 16;
+      if (y + 1 < h) {
+        if (x > 0)                g[i + w - 1] += err * 3 / 16;
+                                  g[i + w]     += err * 5 / 16;
+        if (x + 1 < w)            g[i + w + 1] += err * 1 / 16;
+      }
+    }
+  }
+  for (let i = 0; i < w * h; i++) {
+    const v = Math.max(0, Math.min(255, g[i]));
+    d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v;
+  }
+}
+
+function render() {
+  const m = currentModel();
+  const fit = document.querySelector('input[name="fit"]:checked').value;
+  const bg = document.querySelector('input[name="bg"]:checked').value;
+  const dither = $("dither").checked;
+
+  canvas.width = m.w;
+  canvas.height = m.h;
+  document.getElementById("screen").style.aspectRatio = `${m.w} / ${m.h}`;
+
+  // meta line
+  modelMeta.innerHTML =
+    `<span>output <b>${m.w}×${m.h}</b></span>` +
+    `<span>display <b>${m.color ? "color" : "grayscale"}</b></span>`;
+
+  bgField.hidden = fit !== "contain";
+
+  if (!srcImage) {
+    emptyEl.style.display = "flex";
+    canvas.hidden = true;
+    downloadBtn.disabled = true;
+    readout.textContent = `${m.name} · ${m.w}×${m.h} · waiting for an image`;
+    return;
+  }
+
+  ctx.clearRect(0, 0, m.w, m.h);
+
+  if (fit === "contain" && bg !== "transparent") {
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, m.w, m.h);
+  }
+
+  const iw = srcImage.naturalWidth, ih = srcImage.naturalHeight;
+  const scale = fit === "fill" ? Math.max(m.w / iw, m.h / ih) : Math.min(m.w / iw, m.h / ih);
+  const dw = iw * scale, dh = ih * scale;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(srcImage, (m.w - dw) / 2, (m.h - dh) / 2, dw, dh);
+
+  if (!m.color) {
+    const imgData = ctx.getImageData(0, 0, m.w, m.h);
+    grayscale(imgData);
+    if (dither) ditherTo16(imgData, m.w, m.h);
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  emptyEl.style.display = "none";
+  canvas.hidden = false;
+  downloadBtn.disabled = false;
+
+  const alphaNote = srcIsPNG ? " · PNG alpha preserved" : "";
+  readout.innerHTML = `<b>${m.name}</b> · ${m.w}×${m.h} · ${m.color ? "color kept" : "grayscale"}${dither && !m.color ? " · dithered" : ""}${alphaNote}`;
+
+  // e-ink refresh flash
+  flashEl.classList.remove("go");
+  void flashEl.offsetWidth;
+  flashEl.classList.add("go");
+}
+
+/* ---------------- download ---------------- */
+downloadBtn.addEventListener("click", () => {
+  const m = currentModel();
+  canvas.toBlob(blob => {
+    if (!blob) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${m.id}_screensaver_${m.w}x${m.h}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }, "image/png");
+});
+
+/* ---------------- re-render on any setting change ---------------- */
+modelSel.addEventListener("change", render);
+document.querySelectorAll('input[name="fit"], input[name="bg"], #dither').forEach(el =>
+  el.addEventListener("change", render)
+);
+
+/* preview background toggle (does not affect the exported PNG) */
+$("bookbg").addEventListener("change", e => {
+  $("booktext").hidden = !e.target.checked;
+});
+
+render();
+</script>
+</body>
+</html>
