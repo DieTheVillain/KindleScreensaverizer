@@ -7,7 +7,7 @@ Use it here: https://DieTheVillain.github.io/KindleScreensaverizer/
 
 Made this because I got tired of opening an image editor every time I wanted to resize something to 1236x1648 and remember which model wants which resolution. Pick your Kindle from the dropdown and it handles the rest.
 
-**__What it does__**
+**_What it does_**
 
 - Resizes to the native resolution of whatever model you pick (everything from the K3 up through the Scribe and Colorsoft)
 - Converts to grayscale automatically unless you picked the Colorsoft, since that's the only one with a color panel
